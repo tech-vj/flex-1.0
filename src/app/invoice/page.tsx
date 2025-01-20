@@ -1,12 +1,17 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import html2pdf from "html2pdf.js";
+import dynamic from "next/dynamic";
+
+// Dynamically import html2pdf.js only on the client side
+const Html2Pdf = dynamic(() => import("html2pdf.js"), { ssr: false });
 
 const InvoicePage = () => {
   const [invoiceData, setInvoiceData] = useState<any>(null);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
     const data = sessionStorage.getItem("invoiceData");
     if (data) {
       setInvoiceData(JSON.parse(data));
@@ -26,19 +31,28 @@ const InvoicePage = () => {
   const calculateNetPayable = (total: number, taxAmount: number) =>
     total - taxAmount;
 
-  const handleDownloadPDF = () => {
-    const element = document.getElementById("invoice");
-    const options = {
-      filename: "invoice.pdf",
-      jsPDF: { unit: "pt", format: "a4" },
-      html2canvas: { scale: 2 },
-    };
-    html2pdf().set(options).from(element).save();
-  };
+  useEffect(() => {
+    if (isClient && Html2Pdf) {
+      const handleDownloadPDF = () => {
+        const element = document.getElementById("invoice");
+        const options = {
+          filename: "invoice.pdf",
+          jsPDF: { unit: "pt", format: "a4" },
+          html2canvas: { scale: 2 },
+        };
 
-  const handlePrint = () => {
-    window.print();
-  };
+        // Ensure Html2Pdf is available and callable
+        (Html2Pdf as any)().set(options).from(element).save();
+      };
+
+      const handlePrint = () => {
+        window.print();
+      };
+
+      window.handleDownloadPDF = handleDownloadPDF;
+      window.handlePrint = handlePrint;
+    }
+  }, [isClient]);
 
   if (!invoiceData) {
     return (
@@ -66,7 +80,6 @@ const InvoicePage = () => {
         </h1>
 
         <div className="space-y-8">
-          {/* Biller Information */}
           <div>
             <h2 className="text-lg font-semibold text-blue-800 mb-2">
               Biller Information
@@ -84,7 +97,6 @@ const InvoicePage = () => {
             </div>
           </div>
 
-          {/* Buyer Information */}
           <div>
             <h2 className="text-lg font-semibold text-blue-800 mb-2">
               Buyer Information
@@ -99,7 +111,6 @@ const InvoicePage = () => {
             </div>
           </div>
 
-          {/* Product Information */}
           <div>
             <h2 className="text-lg font-semibold text-blue-800 mb-4">
               Products
@@ -115,23 +126,14 @@ const InvoicePage = () => {
               </thead>
               <tbody className="bg-gray-100 text-gray-700">
                 {products.map((product: any, index: number) => (
-                  <tr
-                    key={index}
-                    className="border-b border-gray-300 last:border-none"
-                  >
+                  <tr key={index} className="border-b border-gray-300 last:border-none">
                     <td className="py-2 px-4">{product.name || "N/A"}</td>
                     <td className="py-2 px-4 text-right">
                       ₹{parseFloat(product.price || 0).toFixed(2)}
                     </td>
+                    <td className="py-2 px-4 text-right">{product.quantity || 1}</td>
                     <td className="py-2 px-4 text-right">
-                      {product.quantity || 1}
-                    </td>
-                    <td className="py-2 px-4 text-right">
-                      ₹
-                      {(
-                        parseFloat(product.price || 0) *
-                        (product.quantity || 1)
-                      ).toFixed(2)}
+                      ₹{(parseFloat(product.price || 0) * (product.quantity || 1)).toFixed(2)}
                     </td>
                   </tr>
                 ))}
@@ -139,42 +141,25 @@ const InvoicePage = () => {
             </table>
           </div>
 
-          {/* Invoice Summary */}
           <div className="mt-8">
             <table className="w-full border-t border-gray-300">
               <tbody>
-                {/* Total */}
                 <tr className="bg-gray-300">
-                  <td
-                    colSpan={3}
-                    className="py-2 px-4 font-semibold text-right"
-                  >
-                    Total
-                  </td>
+                  <td colSpan={3} className="py-2 px-4 font-semibold text-right">Total</td>
                   <td className="py-2 px-4 font-bold text-right text-green-600">
                     ₹{total.toFixed(2)}
                   </td>
                 </tr>
-
-                {/* Tax Deducted */}
                 <tr className="bg-gray-300">
-                  <td
-                    colSpan={3}
-                    className="py-2 px-4 font-semibold text-right"
-                  >
+                  <td colSpan={3} className="py-2 px-4 font-semibold text-right">
                     Tax Amount Deducted ({taxSlab}%)
                   </td>
                   <td className="py-2 px-4 font-bold text-right text-red-600">
                     ₹{taxAmount.toFixed(2)}
                   </td>
                 </tr>
-
-                {/* Net Payable (Final Amount) */}
                 <tr className="bg-gray-300">
-                  <td
-                    colSpan={3}
-                    className="py-2 px-4 font-semibold text-right"
-                  >
+                  <td colSpan={3} className="py-2 px-4 font-semibold text-right">
                     Net Payable (After Tax)
                   </td>
                   <td className="py-2 px-4 font-bold text-right text-blue-600">
@@ -187,22 +172,13 @@ const InvoicePage = () => {
         </div>
 
         <div className="text-center mt-8 space-x-4">
-          <button
-            onClick={handlePrint}
-            className="px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition shadow-lg"
-          >
+          <button onClick={() => window.handlePrint()} className="px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition shadow-lg">
             Print
           </button>
-          <button
-            onClick={handleDownloadPDF}
-            className="px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition shadow-lg"
-          >
+          <button onClick={() => window.handleDownloadPDF()} className="px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition shadow-lg">
             Download PDF
           </button>
-          <button
-            onClick={() => (window.location.href = "/setup")}
-            className="px-6 py-3 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-700 transition shadow-lg"
-          >
+          <button onClick={() => (window.location.href = "/setup")} className="px-6 py-3 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-700 transition shadow-lg">
             Back to Setup
           </button>
         </div>
